@@ -1,0 +1,9 @@
+{
+  "development": {
+    "username": "mofaz",
+    "password": "1945",
+    "database": "mofaz",
+    "host": "127.0.0.1",
+    "dialect": "postgres"
+  }
+}
