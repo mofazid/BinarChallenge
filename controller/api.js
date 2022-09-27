@@ -1,6 +1,7 @@
 const { hashSync, compareSync } = require("bcrypt")
 const jwt  = require('jsonwebtoken')
 const { users, rooms } = require('../models');
+const axios = require("axios")  ;
 
 
 exports.register = async function(req, res, next) {
@@ -37,8 +38,8 @@ exports.login = async function(req, res, next) {
     if(user) {
       const isPasswordValid = compareSync(req.body.password, user.password)
       if(isPasswordValid) {
-        const token = jwt.sign({ id: user.id }, 'secret', { expiresIn: 86400 })
-        res.status(200).send({ auth: true, token: token })
+        const token = jwt.sign({ id: user.id, role: user.role }, 'secret', { expiresIn: "2h" })
+        res.status(200).send({ auth: true, token: token, })
       } else {
         res.status(401).send({ auth: false, token: null })
       }
@@ -54,8 +55,6 @@ exports.createRoom = async function(req, res, next) {
   try{
     const room = await rooms.create({
       name: req.body.name,
-      player1choice: req.body.player1Choice,
-      player2choice: req.body.player2Choice,
     })
     res.status(201).send({
       message: 'Room created successfully',
@@ -77,105 +76,73 @@ exports.fight = async function(req, res, next) {
     const gunting = 'gunting'
     const kertas = 'kertas'
 
+ 
+
     const room = await rooms.findOne({
       where: {
         id: req.params.id
       }
     })
-    if(room) {
-      if(req.body.choice === batu || req.body.choice === gunting || req.body.choice === kertas) {
-        if(room.player1Choice === null) {
-          await rooms.update({
-            player1Choice: req.body.choice
-          }, {
-            where: {
-              id: req.params.id
-            }
-          })
-          res.status(200).send({ message: 'Waiting for player 2'})
-        } else if(room.player2Choice === null) {
-          await rooms.update({
-            player2Choice: req.body.choice
-          }, {
-            where: {
-              id: req.params.id
-            }
-          })
-          if(room.player1Choice === batu && room.player2Choice === gunting) {
-            await rooms.update({
-              winner: 'player1'
-            }, {
-              where: {
-                id: req.params.id
-              }
-            })
-            res.status(200).send({ message: 'Player 1 win'})
-          } else if(room.player1Choice === batu && room.player2Choice === kertas) {
-            await rooms.update({
-              winner: 'player2'
-            }, {
-              where: {
-                id: req.params.id
-              }
-            })
-            res.status(200).send({ message: 'Player 2 win'})
-          } else if(room.player1Choice === gunting && room.player2Choice === batu) {
-            await rooms.update({
-              winner: 'player2'
-            }, {
-              where: {
-                id: req.params.id
-              }
-            })
-            res.status(200).send({ message: 'Player 2 win'})
-          } else if(room.player1Choice === gunting && room.player2Choice === kertas) {
-            await rooms.update({
-              winner: 'player1'
-            }, {
-              where: {
-                id: req.params.id
-              }
-            })
-            res.status(200).send({ message: 'Player 1 win'})
-          } else if(room.player1Choice === kertas && room.player2Choice === batu) {
-            await rooms.update({
-              winner: 'player1'
-            }, {
-              where: {
-                id: req.params.id
-              }
-            })
-            res.status(200).send({ message: 'Player 1 win'})
-          } else if(room.player1Choice === kertas && room.player2Choice === gunting) {
-            await rooms.update({
-              winner: 'player2'
-            }, {
-              where: {
-                id: req.params.id
-              }
-            })
-            res.status(200).send({ message: 'Player 2 win'})
-          } else {
-            await rooms.update({
-              winner: 'draw'
-            }, {
-              where: {
-                id: req.params.id
-              }
-            })
-            res.status(200).send({ message: 'Draw'})
-          }
-        } else {
-          res.status(400).send({ message: 'Room is full'})
-        }
-      } else {
-        res.status(400).send({ message: 'Choice must be batu, gunting or kertas'})
+
+    room.update({
+      player1choice: req.body.p1,
+      player2choice: req.body.p2,
+      })
+
+      p1Choice = []
+      p2Choice = []
+      
+      if(room.player1choice === room.player2choice){
+        room.update({
+          winner: 'draw'
+        })
+
+      } 
+      else if(room.player1choice === batu && room.player2choice === gunting || room.player1choice === gunting && room.player2choice === kertas || room.player1choice === kertas && room.player2choice === batu){
+        room.update({
+          winner: 'player1'
+        })
+        p1Choice.push(req.body.p1)
+        p2Choice.push(req.body.p2)
+        console.log(p1Choice, p2Choice)
       }
-    } else {
-      res.status(404).send({ message: 'Room not found'})
-    }
+      else if(room.player2choice === batu && room.player1choice === gunting || room.player2choice === gunting && room.player1choice === kertas || room.player2choice === kertas && room.player1choice === batu){
+        room.update({
+          winner: 'player2'
+        })
+        p1Choice.push(req.body.p1)
+        p2Choice.push(req.body.p2)
+        console.log(p1Choice, p2Choice)
+      }
+      else{
+        room.update({
+          winner: 'draw'
+        })
+      }
+      res.status(200).send({
+        message: 'game ended',
+        room: {
+          id: room.id,
+          name: room.name,
+          player1choice: room.player1choice,
+          player2choice: room.player2choice,
+          winner: room.winner
+        }
+      });
   } catch (error) {
     res.status(400).send("something went wrong")
   }
 }
 
+
+exports.history =  async function(req, res, next) {
+  try{
+    rooms.findAll({
+    }).then(rooms => {
+      res.status(200).send(rooms)
+    })
+  }
+  catch(error){
+    res.status(400).send("something went wrong")
+  }
+}
